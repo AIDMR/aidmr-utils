@@ -25,7 +25,7 @@ mrd = ["ismrmrd>=1.14"]
 # depending on the plain wheel here would fight the GPU wheel in the container.
 onnx = ["onnxruntime>=1.20"]
 # Text and shape drawing on images.
-imaging = ["opencv-python-headless>=4.9"]
+imaging = ["opencv-python-headless>=4.9", "scikit-image>=0.22"]
 dev = [
     "pytest>=8.0",
     "pydicom>=3,<4",

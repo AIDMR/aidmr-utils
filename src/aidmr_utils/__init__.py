@@ -12,8 +12,11 @@ importing this package must never require them.
     from aidmr_utils.geometry import Plane, closest_plane
     from aidmr_utils.orientation import canonicalise_cine
     from aidmr_utils.pixel import mm_per_pixel_for_side, assert_square_pixels
+    from aidmr_utils.onnx import load_model_onnx, warm_up            # [onnx]
+    from aidmr_utils.imaging import put_text_on_img                  # [imaging]
+    from aidmr_utils.fire import ReplayableConnection, save_and_return  # [mrd]
 
-`dicom` and `mrd` are NOT re-exported here: importing this package must work in
+`dicom`, `mrd`, `onnx`, `imaging` and `fire` are NOT re-exported here: importing this package must work in
 an environment that has neither pydicom nor ismrmrd, which is the whole reason
 they are extras. Import those two by module.
 """

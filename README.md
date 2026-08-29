@@ -4,7 +4,7 @@ One implementation of the things AMP, CMRQ, AIFS, BPF and LGEP all need, so a fi
 made once is a fix everywhere.
 
 ```bash
-pip install "aidmr-utils[dicom] @ git+https://github.com/AIDMR/aidmr-utils@v0.1.0"
+pip install "aidmr-utils[dicom] @ git+https://github.com/AIDMR/aidmr-utils@v0.1.1"
 ```
 
 Pin to a **tag**, never a branch. The FIRE container currently clones every model
@@ -72,6 +72,14 @@ MetaAttributes — those, not `read_dir` / `phase_dir`, are what become DICOM's
 scanner reorient a measurements table 180 degrees. `standard_image_meta` takes
 `row_dir` / `col_dir`, and CMRQ's commented-out version wrote `ImageColDir`,
 which is not the key anything reads.
+
+`np_float_to_mrd` takes `require_square_pixels` (default `True`). BPF echoes
+acquired geometry onto a padded square, so anisotropic pixels there mean the
+geometry was got wrong and a Siemens reconstruction refuses the result — it needs
+the assert. AMP *prescribes* slices with a deliberately rectangular field of view,
+and its phase axis is not always the row axis, so it opts out. Making the check
+unconditional imposed one program's invariant on another and broke 36 of AMP's
+tests; that is what the parameter exists to prevent.
 
 Consolidating also surfaced a latent bug present in **all three** originals: the
 greyscale path never set `head.channels`, so a template header carrying

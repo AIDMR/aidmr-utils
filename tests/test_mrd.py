@@ -421,3 +421,25 @@ def test_parse_h5_says_so_when_there_are_no_images(tmp_path):
     ds.close()
     with pytest.raises(LookupError, match='no image group'):
         parse_h5_to_images(str(p))
+
+
+def test_square_pixel_check_can_be_switched_off():
+    """Not every program echoes acquired geometry onto a padded square.
+
+    BPF does, and there anisotropic pixels mean it got the geometry wrong. AMP
+    PRESCRIBES slices with a deliberately rectangular field of view. Making the
+    check unconditional imposed BPF's invariant on AMP and broke 36 of its tests.
+    """
+    img = np.zeros((64, 64))
+    with pytest.raises(AssertionError, match='non-square pixels'):
+        build(img, fov_freq_phase_slice=(240.0, 180.0, 8.0))
+    # ...and the same call is fine when the caller says so
+    out = build(img, fov_freq_phase_slice=(240.0, 180.0, 8.0),
+                require_square_pixels=False)
+    assert out is not None
+
+
+def test_the_check_still_defaults_to_on():
+    """BPF relies on the default: the assert is why its geometry bug stayed fixed."""
+    with pytest.raises(AssertionError, match='non-square pixels'):
+        build(np.zeros((64, 64)), fov_freq_phase_slice=(240.0, 100.0, 8.0))

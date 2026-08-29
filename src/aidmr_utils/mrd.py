@@ -74,7 +74,7 @@ from typing import Tuple
 import numpy as np
 from loguru import logger
 
-from .pixel import assert_square_pixels
+from .pixel import SQUARE_PIXEL_TOLERANCE, anisotropy, assert_square_pixels
 
 try:
     import ismrmrd
@@ -255,7 +255,8 @@ def np_float_to_mrd(img,
                     attribute_string: str,
                     use_table_position: bool = True,
                     use_rgb: bool = False,
-                    coerce_odd_even_dims: bool = False):
+                    coerce_odd_even_dims: bool = False,
+                    require_square_pixels: bool = True):
     """One float image in [0, 1] -> one ismrmrd.Image.
 
     `img` is (H, W) for greyscale, or (H, W, 3) with `use_rgb` — a 2-D array with
@@ -330,17 +331,35 @@ def np_float_to_mrd(img,
                                  + [ctypes.c_ushort(1)])
 
     # The same check `native_pixel_spacing_mm` applies to images coming IN, now
-    # applied to the header going OUT. A Siemens scanner cannot display
-    # anisotropic in-plane pixels and fails the reconstruction rather than
-    # rounding, so this is an assert and not a warning.
-    assert_square_pixels(
-        (float(fov_freq_phase_slice[1]) / float(head.matrix_size[1]),
-         float(fov_freq_phase_slice[0]) / float(head.matrix_size[0])),
-        context=f"outgoing MRD image (matrix {head.matrix_size[0]}x{head.matrix_size[1]}, "
-                f"FOV {float(fov_freq_phase_slice[0]):.1f}x"
-                f"{float(fov_freq_phase_slice[1]):.1f} mm). Build the geometry with "
-                f"padded_square_geometry rather than echoing the acquired field_of_view",
-    )
+    # applied to the header going OUT.
+    #
+    # NOT universal, which is why it is a parameter. BPF echoes acquired geometry
+    # onto a padded square, where anisotropic pixels mean it got the geometry
+    # wrong and a Siemens reconstruction refuses the result - there it must be an
+    # assert. AMP PRESCRIBES slices with a deliberately rectangular field of
+    # view, and has been sending those to the scanner in production for a long
+    # time, so the same check fails 36 of its tests. Making it unconditional
+    # imposed one program's invariant on another.
+    #
+    # The pairing below also assumes phase runs along rows and frequency along
+    # columns. That holds for BPF and CMRQ, whose outgoing matrices are square so
+    # it cannot matter, but not for AMP, whose
+    # `get_default_right_down_unit_vectors_for_freq_phase` returns
+    # `phase_is_rows=False` for coronal and sagittal - which is why a 576x768
+    # matrix with a 768x576 FOV, square under the correct pairing, reads as 56%
+    # anisotropic here. A caller with a non-square matrix and phase along columns
+    # wants this off.
+    spacing = (float(fov_freq_phase_slice[1]) / float(head.matrix_size[1]),
+               float(fov_freq_phase_slice[0]) / float(head.matrix_size[0]))
+    context = (f"outgoing MRD image (matrix {head.matrix_size[0]}x{head.matrix_size[1]}, "
+               f"FOV {float(fov_freq_phase_slice[0]):.1f}x"
+               f"{float(fov_freq_phase_slice[1]):.1f} mm). Build the geometry with "
+               f"padded_square_geometry rather than echoing the acquired field_of_view")
+    if require_square_pixels:
+        assert_square_pixels(spacing, context=context)
+    elif anisotropy(spacing) > SQUARE_PIXEL_TOLERANCE:
+        logger.debug(f"Non-square outgoing pixels ({anisotropy(spacing):.1%}) for "
+                     f"{context} - not checked, require_square_pixels=False")
     head.image_index = image_index
     head.image_series_index = series_index
     mrd_image.setHead(head)

@@ -1,5 +1,14 @@
 # Migrating the AID-MR repos onto aidmr-utils
 
+**Status: phases 1-3 are done and live on an `aidmr-utils` branch in all seven
+repos** (AMP, CMRQ, AIFS, BPF, LGEP, AIDMR-FIRE, AIDMR-dashboard). Phases 4-5
+remain. The per-repo notes below are kept as the record of what changed and why.
+
+Nothing is pushed: the branches resolve aidmr-utils through a
+`[tool.uv.sources]` path entry. Swap those for a pinned git tag once
+`github.com/AIDMR/aidmr-utils` exists, and change the FIRE Dockerfiles'
+`AIDMR_UTILS_REF` ARG from `main` to that tag.
+
 Ordered by risk reduced per unit of effort, not by module size. Each phase is
 independently shippable; nothing below depends on a later phase.
 
@@ -26,7 +35,7 @@ real work happens.
 
 ---
 
-## Phase 1 — `result`  (highest confidence, zero merge risk)
+## Phase 1 — `result`  (DONE)
 
 Six copies, five of them byte-identical. Nothing to reconcile.
 
@@ -56,7 +65,7 @@ rollout fail loudly at the boundary instead of silently dropping fields.
 
 ---
 
-## Phase 2 — `windowing` + `dicom`  (highest correctness payoff)
+## Phase 2 — `windowing` + `dicom`  (DONE)
 
 This is the phase that fixes the Philips bug.
 
@@ -95,7 +104,7 @@ byte-identical to BPF across 165 real series including 24 Philips.
 
 ---
 
-## Phase 3 — `mrd` + `pixel`  (SHIPPED — closes the live orientation bug)
+## Phase 3 — `mrd` + `pixel`  (DONE)
 
 Built from **BPF's** `mrd.py` (newest, true colour, the only one with the
 2026-08-29 layout fix), plus AMP's parity coercion and dimension validation.
@@ -124,18 +133,17 @@ Production headers carry 1, which is why nobody hit it.
 
 ---
 
-## Phase 4 — AMP's sagittal, and deleting the cross-repo tests
+## Phase 4 — AMP's sagittal, and AMP's outgoing layout  (REMAINING)
 
-`geometry`, `orientation` and `pixel` have all shipped; the sagittal question that
-blocked them is settled (see the README).
+The orientation adoption and the cross-repo test deletion happened in phase 3's
+sweep — CMRQ and BPF both use `aidmr_utils.orientation` and
+`BPF/docs/verify_orientation.py` is gone. What is left is AMP-specific, and the
+two halves belong together:
 
-- Adopt `aidmr_utils.orientation` in CMRQ and BPF; delete both copies **and**
-  `BPF/docs/verify_orientation.py`, whose whole purpose was checking the two
-  against each other.
-- Move BPF's `src/lib/geometry.py` call sites to `aidmr_utils.pixel`.
-  `validate_for_pixel_scale(cfg)` became `validate_transform_pipeline(resize=,
-  pad_to_square=, split_flags=)` — explicit arguments, because the five repos
-  spell their configs differently.
+- **AMP still does not declare `ImageRowDir` / `ImageColumnDir` on outgoing
+  images.** BPF fixed this on 2026-08-29 and CMRQ now does it too, but AMP's
+  previews are slices of the patient with real geometry rather than pages, so
+  the pair has to come from AMP's own geometry, not the report identity triple.
 - Fix AMP's `get_default_right_down_unit_vectors_for_freq_phase` sagittal branch
   (`vec_right = -v_phase_xyz` -> `+v_phase_xyz`). Low urgency: its call site notes
   the vectors do not affect slice planning, so the only symptom is a mirrored 2ch

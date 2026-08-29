@@ -570,19 +570,21 @@ def padded_square_geometry(mrd_image) -> dict:
 # ---------------------------------------------------------------------------
 
 def parse_h5_to_images(h5_path: str) -> list:
-    """Every image in an ISMRMRD .h5 capture.
+    """Every image in an ISMRMRD .h5 capture, from every image group.
 
-    The group is `images_0` on newer captures and `image_0` on older ones.
+    Groups are named `images_0` on newer captures and `image_0` on older ones,
+    and a capture can hold SEVERAL - one per series sent down the connection.
+    AMP's copy of this tried `images_0` then `image_0` and returned the first it
+    found, which silently dropped every later group; AIFS's took all of them.
+    AIFS's behaviour is the correct one and is what this does, sorted so the
+    order is deterministic.
     """
     _require_ismrmrd()
     ds = ismrmrd.Dataset(h5_path, '/dataset', False)
-    for group in ('images_0', 'image_0'):
-        try:
-            n_images = ds.number_of_images(group)
-        except LookupError:
-            continue
-        return [ds.read_image(group, i) for i in range(n_images)]
-    raise LookupError(f"no images_0 or image_0 group in {h5_path}")
+    groups = sorted(k for k in ds.list() if 'image' in k)
+    if not groups:
+        raise LookupError(f"no image group in {h5_path}")
+    return [ds.read_image(g, i) for g in groups for i in range(ds.number_of_images(g))]
 
 
 def parse_h5_into_fire_arguments(h5_path: str, config=None):

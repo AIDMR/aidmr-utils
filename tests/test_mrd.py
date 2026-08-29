@@ -13,6 +13,7 @@ ismrmrd = pytest.importorskip('ismrmrd', reason="needs the [mrd] extra")
 
 from aidmr_utils.geometry import Plane, canonical_right_down
 from aidmr_utils.mrd import (INT16_MAX, REPORT_COL_DIR, REPORT_ROW_DIR,
+                             parse_h5_to_images,
                              direction_meta, ecg_from_waveforms, image_geometry,
                              meta_string_list_to_array, native_pixel_spacing_mm,
                              np_float_to_mrd, padded_square_geometry,
@@ -362,3 +363,61 @@ def test_window_is_not_overwritten_when_a_base_meta_is_given():
 def test_window_defaults_cover_the_int16_range_written():
     meta = standard_image_meta('cine')
     assert float(meta['WindowWidth']) == 2 ** 15
+
+
+# ---------------------------------------------------------------------------
+# .h5 capture reading
+# ---------------------------------------------------------------------------
+
+def _minimal_header_xml():
+    """The smallest ismrmrdHeader the schema will accept."""
+    head = ismrmrd.xsd.ismrmrdHeader(
+        experimentalConditions=ismrmrd.xsd.experimentalConditionsType(H1resonanceFrequency_Hz=63600000))
+    return ismrmrd.xsd.ToXML(head)
+
+
+def _write_capture(path, groups: dict):
+    """An ISMRMRD capture with the given {group_name: n_images}."""
+    ds = ismrmrd.Dataset(str(path), '/dataset', True)
+    ds.write_xml_header(_minimal_header_xml())
+    for name, n in groups.items():
+        for i in range(n):
+            img = ismrmrd.Image.from_array(
+                np.full((4, 4), i, dtype=np.int16), transpose=False)
+            ds.append_image(name, img)
+    ds.close()
+
+
+def test_parse_h5_reads_every_image_group(tmp_path):
+    """A capture can hold several image groups - one per series sent.
+
+    AMP's copy tried 'images_0' then 'image_0' and returned the first it found,
+    silently dropping every later group. AIFS's took all of them, and AIFS's
+    test asserts a total frame count, so this is load-bearing.
+    """
+    p = tmp_path / 'multi.h5'
+    _write_capture(p, {'image_0': 3, 'image_1': 4, 'image_2': 2})
+    assert len(parse_h5_to_images(str(p))) == 9
+
+
+def test_parse_h5_handles_the_newer_group_name(tmp_path):
+    p = tmp_path / 'new.h5'
+    _write_capture(p, {'images_0': 5})
+    assert len(parse_h5_to_images(str(p))) == 5
+
+
+def test_parse_h5_group_order_is_deterministic(tmp_path):
+    p = tmp_path / 'order.h5'
+    _write_capture(p, {'image_2': 1, 'image_0': 1, 'image_1': 1})
+    first = [im.data.sum() for im in parse_h5_to_images(str(p))]
+    second = [im.data.sum() for im in parse_h5_to_images(str(p))]
+    assert first == second
+
+
+def test_parse_h5_says_so_when_there_are_no_images(tmp_path):
+    p = tmp_path / 'empty.h5'
+    ds = ismrmrd.Dataset(str(p), '/dataset', True)
+    ds.write_xml_header(_minimal_header_xml())
+    ds.close()
+    with pytest.raises(LookupError, match='no image group'):
+        parse_h5_to_images(str(p))

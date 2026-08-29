@@ -16,9 +16,10 @@ importing this package must never require them.
     from aidmr_utils.imaging import put_text_on_img                  # [imaging]
     from aidmr_utils.fire import ReplayableConnection, save_and_return  # [mrd]
 
-`dicom`, `mrd`, `onnx`, `imaging` and `fire` are NOT re-exported here: importing this package must work in
-an environment that has neither pydicom nor ismrmrd, which is the whole reason
-they are extras. Import those two by module.
+`dicom`, `mrd`, `onnx`, `imaging` and `fire` are NOT re-exported here.
+Importing this package has to work in an environment that has none of pydicom,
+ismrmrd, onnxruntime or cv2, which is the whole reason those are extras - so
+import those five by module.
 """
 
 from .geometry import (CANONICAL_RIGHT_DOWN, Plane, canonical_right_down,

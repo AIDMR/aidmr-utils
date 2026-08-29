@@ -1,8 +1,8 @@
 # Migrating the AID-MR repos onto aidmr-utils
 
-**Status: phases 1-3 are done and live on an `aidmr-utils` branch in all seven
-repos** (AMP, CMRQ, AIFS, BPF, LGEP, AIDMR-FIRE, AIDMR-dashboard). Phases 4-5
-remain. The per-repo notes below are kept as the record of what changed and why.
+**Status: ALL PHASES ARE DONE**, on an `aidmr-utils` branch in all seven repos
+(AMP, CMRQ, AIFS, BPF, LGEP, AIDMR-FIRE, AIDMR-dashboard). The per-repo notes
+below are kept as the record of what changed and why.
 
 Nothing is pushed: the branches resolve aidmr-utils through a
 `[tool.uv.sources]` path entry. Swap those for a pinned git tag once
@@ -133,18 +133,23 @@ Production headers carry 1, which is why nobody hit it.
 
 ---
 
-## Phase 4 — AMP's sagittal, and AMP's outgoing layout  (REMAINING)
+## Phase 4 — AMP's sagittal, and AMP's outgoing layout  (DONE)
 
 The orientation adoption and the cross-repo test deletion happened in phase 3's
 sweep — CMRQ and BPF both use `aidmr_utils.orientation` and
 `BPF/docs/verify_orientation.py` is gone. What is left is AMP-specific, and the
 two halves belong together:
 
-- **AMP still does not declare `ImageRowDir` / `ImageColumnDir` on outgoing
-  images.** BPF fixed this on 2026-08-29 and CMRQ now does it too, but AMP's
-  previews are slices of the patient with real geometry rather than pages, so
-  the pair has to come from AMP's own geometry, not the report identity triple.
-- Fix AMP's `get_default_right_down_unit_vectors_for_freq_phase` sagittal branch
+- AMP now declares `ImageRowDir` / `ImageColumnDir`, and the pair is **derived,
+  not guessed**: the preview matrix was extracted along `(dir_right, dir_down)`,
+  which `views/base` sets in the same block as `vector_freq_mm`/
+  `vector_phase_mm` and from the same candidate, so re-deriving from those
+  reproduces it exactly (verified over 200 random orientations). The keypoint
+  mosaic is a page and takes the report pair. Shim previews are untouched: they
+  deliberately send `attribute_string=""`.
+- Two more copies of `metadata_window` turned up in phase 4, missed earlier only
+  because they live in `dicoms.py` (plural) and `quality/utils.py`. Both are gone.
+- Fixed AMP's `get_default_right_down_unit_vectors_for_freq_phase` sagittal branch
   (`vec_right = -v_phase_xyz` -> `+v_phase_xyz`). Low urgency: its call site notes
   the vectors do not affect slice planning, so the only symptom is a mirrored 2ch
   preview. Delete the now-false "the two repos are deliberately inconsistent"
@@ -153,12 +158,20 @@ two halves belong together:
 
 ---
 
-## Phase 5 — the rest
+## Phase 5 — the rest  (DONE)
 
-`onnx.load_model_onnx` (4 copies; take AMP's, it has session options and a CPU
-fallback — and delete AMP_LOC's, which is legacy), `imaging` (`put_text_on_img`,
-`pad_to_square`, the draw primitives from AMP's `utils.py`), and the FIRE glue
-(`ReplayableConnection`, the `process()` contract).
+`onnx` (4 copies of `load_model_onnx` -> AMP's, plus `load_models_onnx` for AIFS
+and `warm_up`), `imaging` (`put_text_on_img` and the draw primitives), and `fire`
+(`ReplayableConnection`, `save_and_return`, the `process()` contract).
+
+`pad_to_square` deliberately did NOT move. Three variants, and they disagree:
+AMP pads with **half the image max** and is 2-D; BPF and CMRQ pad with **zeros**
+and take a cine. Padding is part of each model's preprocessing contract, tied to
+what it was trained on and (for BPF) to `mrd.padded_square_geometry`, so a shared
+version would have to pick a default and picking wrong changes what a network is
+fed.
+
+`AMP_LOC` is a separate legacy repo and was left alone.
 
 Do **not** move: `lightning.py`, `datasets.py`, `models.py`, `losses.py`,
 `optimizers.py`, `transforms.py`, `callbacks.py`. They look duplicated but each

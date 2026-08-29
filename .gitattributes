@@ -1,0 +1,7 @@
+# LF everywhere. CRLF drift is not hypothetical here: AIDMR-FIRE's vendored copy
+# of aidmr.py differed from the canonical one by line endings plus one import,
+# under a docstring insisting the copies be byte-identical.
+* text=auto eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf

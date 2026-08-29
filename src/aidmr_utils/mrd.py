@@ -333,22 +333,26 @@ def np_float_to_mrd(img,
     # The same check `native_pixel_spacing_mm` applies to images coming IN, now
     # applied to the header going OUT.
     #
-    # NOT universal, which is why it is a parameter. BPF echoes acquired geometry
-    # onto a padded square, where anisotropic pixels mean it got the geometry
-    # wrong and a Siemens reconstruction refuses the result - there it must be an
-    # assert. AMP PRESCRIBES slices with a deliberately rectangular field of
-    # view, and has been sending those to the scanner in production for a long
-    # time, so the same check fails 36 of its tests. Making it unconditional
-    # imposed one program's invariant on another.
+    # A parameter, not a law - but the default is on, because an image whose
+    # pixels are not square is nearly always a mistake. A rectangular FIELD OF
+    # VIEW is fine and normal; it just needs a matrix in the same proportion.
     #
-    # The pairing below also assumes phase runs along rows and frequency along
-    # columns. That holds for BPF and CMRQ, whose outgoing matrices are square so
-    # it cannot matter, but not for AMP, whose
-    # `get_default_right_down_unit_vectors_for_freq_phase` returns
-    # `phase_is_rows=False` for coronal and sagittal - which is why a 576x768
-    # matrix with a 768x576 FOV, square under the correct pairing, reads as 56%
-    # anisotropic here. A caller with a non-square matrix and phase along columns
-    # wants this off.
+    # Turning this on across the estate found that AMP emitted non-square pixels
+    # on 94.8% of its outgoing images (529 of 558 measured over its test suite),
+    # up to 2:1. Two causes, both since fixed in AMP: previews padded to square
+    # without extending the FOV - exactly the bug padded_square_geometry exists
+    # for - and a keypoint mosaic whose FOV tuple was transposed.
+    #
+    # What legitimately wants this off is an image that is deliberately squashed:
+    # AMP's shim previews resize a rectangular region into a fixed 192x192, so
+    # their anisotropic FOV is an honest description of the render rather than an
+    # error. Those are the only ones left.
+    #
+    # The pairing below assumes phase runs along rows and frequency along
+    # columns, which is what field_of_view being (freq, phase) against a
+    # (cols, rows) matrix means. A caller whose phase axis is the column axis
+    # must pass its FOV in that order rather than turn this off - AMP's mosaic
+    # had them the wrong way round and this is what caught it.
     spacing = (float(fov_freq_phase_slice[1]) / float(head.matrix_size[1]),
                float(fov_freq_phase_slice[0]) / float(head.matrix_size[0]))
     context = (f"outgoing MRD image (matrix {head.matrix_size[0]}x{head.matrix_size[1]}, "

@@ -73,13 +73,17 @@ scanner reorient a measurements table 180 degrees. `standard_image_meta` takes
 `row_dir` / `col_dir`, and CMRQ's commented-out version wrote `ImageColDir`,
 which is not the key anything reads.
 
-`np_float_to_mrd` takes `require_square_pixels` (default `True`). BPF echoes
-acquired geometry onto a padded square, so anisotropic pixels there mean the
-geometry was got wrong and a Siemens reconstruction refuses the result — it needs
-the assert. AMP *prescribes* slices with a deliberately rectangular field of view,
-and its phase axis is not always the row axis, so it opts out. Making the check
-unconditional imposed one program's invariant on another and broke 36 of AMP's
-tests; that is what the parameter exists to prevent.
+`np_float_to_mrd` takes `require_square_pixels`, and it defaults to **on** — an
+image whose pixels are not square is nearly always a mistake. A rectangular
+*field of view* is fine; it just needs a matrix in the same proportion.
+
+Turning it on across the estate found AMP emitting non-square pixels on **94.8%**
+of its outgoing images (529 of 558), up to 2:1. Two causes, both since fixed:
+previews padded to square without extending the FOV — the exact bug
+`padded_square_geometry` exists for, which BPF had already hit and fixed — and a
+keypoint mosaic whose FOV tuple was transposed. What legitimately wants the check
+off is an image that is deliberately squashed, such as AMP's shim previews, which
+resize a rectangular region into a fixed square.
 
 Consolidating also surfaced a latent bug present in **all three** originals: the
 greyscale path never set `head.channels`, so a template header carrying

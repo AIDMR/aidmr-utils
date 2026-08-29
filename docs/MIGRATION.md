@@ -95,42 +95,49 @@ byte-identical to BPF across 165 real series including 24 Philips.
 
 ---
 
-## Phase 3 — `mrd`  (closes the live orientation bug)
+## Phase 3 — `mrd` + `pixel`  (SHIPPED — closes the live orientation bug)
 
-Not yet in the package. Take **BPF's** `mrd.py` as the base: it is the newest,
-it has true-colour support, and it is the only one carrying the 2026-08-29
-`ImageRowDir`/`ImageColumnDir` fix.
+Built from **BPF's** `mrd.py` (newest, true colour, the only one with the
+2026-08-29 layout fix), plus AMP's parity coercion and dimension validation.
+`pixel` came with it because `mrd` depends on `assert_square_pixels`.
 
-Reconcile on the way in:
+```python
+# after
+from aidmr_utils.mrd import (np_float_to_mrd, standard_image_meta,
+                             report_image_to_mrd, padded_square_geometry,
+                             native_pixel_spacing_mm)
+```
 
-| | CMRQ | AMP | BPF |
-|---|---|---|---|
-| `np_float_to_mrd` | stale subset; **does not unit-normalise** the direction vectors; asserts square matrix | superset: `title`, parity coercion, dim validation | superset of AMP + real colour + square-pixel assert |
-| meta builder name | `get_standard_ismrmrd_meta_for_uint16_image` | same (`seres_desc` typo) | `get_standard_ismrmrd_meta` |
-| `ImageRowDir` out | **commented out, and writes `ImageColDir` — the wrong key** | absent | correct |
-| WC/WW | set unconditionally | only when `base_meta is None` | only when `base_meta is None` |
+What each repo has to change:
 
-Settle on one name (`standard_image_meta`), one signature
-(`(series_desc, *, base_meta=None, row_dir=None, col_dir=None)`), and fix the
-`seres_desc` typo. Back-porting the row/col dir fix to AMP and CMRQ is the point
-of this phase — both currently send images back without declaring a layout.
+| | change |
+|---|---|
+| **AMP** | `get_standard_ismrmrd_meta_for_uint16_image` -> `standard_image_meta`, keyword-only, `seres_desc` typo gone. **Pass `row_dir`/`col_dir`** — AMP currently declares no layout at all. Drop `title=` and `output_shape_yx=`: do them at the call site (`np_float_to_mrd(put_text_on_img(img, t), ...)`). Its outputs now hit `assert_square_pixels`; a failure there is a real finding, not a regression. |
+| **CMRQ** | same rename. **Delete the commented-out block** — it writes `ImageColDir`, the wrong key — and pass `row_dir`/`col_dir` instead. Gains unit-normalised direction vectors and loses the square-matrix assert. `WindowCenter`/`WindowWidth` now only default when there is no `base_meta`, matching AMP and BPF. |
+| **BPF** | closest already; `get_standard_ismrmrd_meta` -> `standard_image_meta`, and pass `program='bpf'` to keep `ImageProcessingHistory` as it was. |
+| **AIFS** | only `parse_h5_into_fire_arguments` — its `mrd.py` is 34 lines. Note the config is now an argument rather than AMP's hard-coded planning parameters. |
+
+Consolidating surfaced a latent bug in **all three** originals: the greyscale
+path never set `head.channels`, so a template header carrying `channels=0` gave a
+zero-size `.data` array. Verified against BPF's — it returns `shape=(0,1,64,64)`.
+Production headers carry 1, which is why nobody hit it.
 
 ---
 
-## Phase 4 — `pixel`, and AMP's geometry
+## Phase 4 — AMP's sagittal, and deleting the cross-repo tests
 
-`orientation` and `geometry` already shipped; the sagittal question that blocked
-them is settled (see the README).
+`geometry`, `orientation` and `pixel` have all shipped; the sagittal question that
+blocked them is settled (see the README).
 
-- Move BPF's `geometry.py` (mm-per-pixel, anisotropy, square-pixel asserts) in as
-  `aidmr_utils.pixel`. **Do not call it `geometry`** — AMP's `geometry.py` is
-  cardiac plane geometry and has no overlap with it. Same filename, two subjects,
-  which is how the estate got here.
-- Adopt `aidmr_utils.orientation` in CMRQ and BPF; delete both copies and
+- Adopt `aidmr_utils.orientation` in CMRQ and BPF; delete both copies **and**
   `BPF/docs/verify_orientation.py`, whose whole purpose was checking the two
   against each other.
+- Move BPF's `src/lib/geometry.py` call sites to `aidmr_utils.pixel`.
+  `validate_for_pixel_scale(cfg)` became `validate_transform_pipeline(resize=,
+  pad_to_square=, split_flags=)` — explicit arguments, because the five repos
+  spell their configs differently.
 - Fix AMP's `get_default_right_down_unit_vectors_for_freq_phase` sagittal branch
-  (`vec_right = -v_phase_xyz` → `+v_phase_xyz`). Low urgency: its call site notes
+  (`vec_right = -v_phase_xyz` -> `+v_phase_xyz`). Low urgency: its call site notes
   the vectors do not affect slice planning, so the only symptom is a mirrored 2ch
   preview. Delete the now-false "the two repos are deliberately inconsistent"
   notes in CMRQ and BPF.

@@ -228,9 +228,85 @@ def check_dicom():
         note("no series with a non-zero intercept AND WC/WW tags found")
 
 
+def check_mrd():
+    """np_float_to_mrd against BPF's, on the geometries the scanner really sends."""
+    print("\n=== mrd.np_float_to_mrd vs BPF's ===")
+    try:
+        import ctypes
+        import ismrmrd
+        from aidmr_utils.mrd import np_float_to_mrd as new_build
+    except ImportError as e:
+        note(f"skipping: {e}")
+        return
+
+    ref = _load_reference(BPF_ROOT, 'mrd')
+    if ref is None:
+        return
+
+    rng = np.random.default_rng(0)
+    img = rng.random((64, 64))
+
+    def head_with(channels):
+        h = ismrmrd.ImageHeader()
+        h.matrix_size = tuple(ctypes.c_ushort(v) for v in (64, 64, 1))
+        h.field_of_view = tuple(ctypes.c_float(v) for v in (240.0, 240.0, 8.0))
+        h.patient_table_position = tuple(ctypes.c_float(v) for v in (0.0, 5.0, 0.0))
+        h.channels = channels
+        return h
+
+    common = dict(position_xyz=(1.0, 2.0, 3.0),
+                  fov_freq_phase_slice=(240.0, 240.0, 8.0),
+                  phase_encoding_dir_xyz=(0.0, 1.0, 0.0),
+                  freq_encoding_dir_xyz=(1.0, 0.0, 0.0),
+                  image_index=1, series_index=1, attribute_string='')
+
+    # Production path: the template header FIRE forwards carries channels=1
+    new = new_build(img, template_head=head_with(1), **common)
+    old = ref.np_float_to_mrd(img, template_head=head_with(1), **common)
+    ok("greyscale pixels identical to BPF (production template)",
+       np.array_equal(new.data, old.data))
+    ok("header geometry identical to BPF",
+       tuple(new.getHead().position) == tuple(old.getHead().position)
+       and tuple(new.getHead().field_of_view) == tuple(old.getHead().field_of_view)
+       and tuple(new.getHead().matrix_size) == tuple(old.getHead().matrix_size))
+
+    rgb = rng.random((64, 64, 3))
+    new_rgb = new_build(rgb, template_head=head_with(1), use_rgb=True, **common)
+    old_rgb = ref.np_float_to_mrd(rgb, template_head=head_with(1), use_rgb=True, **common)
+    ok("RGB pixels identical to BPF", np.array_equal(new_rgb.data, old_rgb.data))
+
+    # The deliberate fix: a header carrying channels=0 (fresh, or a replayed
+    # capture) silently produced a zero-size array in every pre-package version.
+    new_zero = new_build(img, template_head=head_with(0), **common)
+    old_zero = ref.np_float_to_mrd(img, template_head=head_with(0), **common)
+    note(f"channels=0 template: aidmr-utils data.shape={new_zero.data.shape} "
+         f"(size {new_zero.data.size}), BPF's={old_zero.data.shape} "
+         f"(size {old_zero.data.size}) - the greyscale path now sets channels=1")
+
+    # Real geometries from the captures
+    geoms = collect_real_geometries()
+    bad = []
+    for right, down in geoms:
+        try:
+            new_build(img, template_head=head_with(1),
+                      position_xyz=(0.0, 0.0, 0.0),
+                      fov_freq_phase_slice=(240.0, 240.0, 8.0),
+                      phase_encoding_dir_xyz=np.array(down),
+                      freq_encoding_dir_xyz=np.array(right),
+                      image_index=1, series_index=1, attribute_string='')
+        except Exception as e:
+            bad.append((right, down, e))
+    ok(f"builds cleanly from all {len(geoms)} real slice geometries", not bad,
+       '' if not bad else f"{len(bad)} failed, e.g. {bad[0][2]}")
+
+
 def main():
     print(__doc__.strip().split('\n\n')[0])
     check_orientation()
+    try:
+        check_mrd()
+    except Exception as e:
+        note(f"mrd comparison could not run: {type(e).__name__}: {e}")
     try:
         check_dicom()
     except ImportError as e:

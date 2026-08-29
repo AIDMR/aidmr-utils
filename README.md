@@ -50,13 +50,34 @@ Siemens and no GE. On a real Philips LGE series the un-rescaled window admits
 | `dicom` | `load_pixels`, `read_image`, `read_series` | `[dicom]` |
 | `geometry` | `Plane`, `closest_plane`, `CANONICAL_RIGHT_DOWN` | — |
 | `orientation` | `canonicalise_cine`, the transform group, `inverse_transform` | — |
+| `pixel` | `mm_per_pixel_for_side`, `assert_square_pixels`, `anisotropy` | — |
+| `mrd` | `np_float_to_mrd`, `standard_image_meta`, `report_image_to_mrd`, geometry readers | `[mrd]` |
 
 `windowing` is deliberately dependency-free. Both sides of every deployment
 import it — training reads DICOMs, FIRE receives MRD — and the two must apply the
 identical mapping or the model sees intensities it was never trained on.
 
-Still to move: `mrd` (take BPF's, it is newest and has the `ImageRowDir` fix),
-`pixel` (mm-per-pixel), `onnx`, `imaging`, and the FIRE glue.
+`dicom` and `mrd` are not re-exported from the package root, so importing
+`aidmr_utils` works with neither pydicom nor ismrmrd installed. Import those two
+by module.
+
+Still to move: `onnx`, `imaging`, and the FIRE glue.
+
+### The outgoing-layout fix
+
+`mrd` carries BPF's 2026-08-29 fix, which AMP never got and CMRQ has commented
+out. Outgoing images must declare `ImageRowDir` / `ImageColumnDir` in the
+MetaAttributes — those, not `read_dir` / `phase_dir`, are what become DICOM's
+`ImageOrientationPatient` and decide the displayed layout. Omitting them let the
+scanner reorient a measurements table 180 degrees. `standard_image_meta` takes
+`row_dir` / `col_dir`, and CMRQ's commented-out version wrote `ImageColDir`,
+which is not the key anything reads.
+
+Consolidating also surfaced a latent bug present in **all three** originals: the
+greyscale path never set `head.channels`, so a template header carrying
+`channels=0` (a fresh `ImageHeader`, or one from a replayed capture) produced a
+zero-size `.data` array. It never bit in production only because the headers FIRE
+forwards happen to carry 1.
 
 ## The DICOM API, and why it is shaped like this
 

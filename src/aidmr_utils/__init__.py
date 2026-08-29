@@ -8,12 +8,20 @@ importing this package must never require them.
     from aidmr_utils.result import AIDMRResult, verdict, resolved_by
     from aidmr_utils.windowing import parse_window_spec, window_series
     from aidmr_utils.dicom import load_pixels, read_series      # [dicom]
+    from aidmr_utils.mrd import np_float_to_mrd, standard_image_meta   # [mrd]
     from aidmr_utils.geometry import Plane, closest_plane
     from aidmr_utils.orientation import canonicalise_cine
+    from aidmr_utils.pixel import mm_per_pixel_for_side, assert_square_pixels
+
+`dicom` and `mrd` are NOT re-exported here: importing this package must work in
+an environment that has neither pydicom nor ismrmrd, which is the whole reason
+they are extras. Import those two by module.
 """
 
 from .geometry import (CANONICAL_RIGHT_DOWN, Plane, canonical_right_down,
                        closest_plane, normal_for_named_plane, plane_of, unit)
+from .pixel import (SQUARE_PIXEL_TOLERANCE, anisotropy, assert_square_pixels,
+                    mm_per_pixel_for_side)
 from .windowing import (DEPLOYABLE_WINDOWINGS, DicomWindow, PercentileWindow,
                         WindowSpec, apply_window, parse_window_spec, window,
                         window_series)
@@ -22,6 +30,9 @@ __all__ = [
     # geometry
     'CANONICAL_RIGHT_DOWN', 'Plane', 'canonical_right_down', 'closest_plane',
     'normal_for_named_plane', 'plane_of', 'unit',
+    # pixel
+    'SQUARE_PIXEL_TOLERANCE', 'anisotropy', 'assert_square_pixels',
+    'mm_per_pixel_for_side',
     # windowing
     'DEPLOYABLE_WINDOWINGS', 'DicomWindow', 'PercentileWindow', 'WindowSpec',
     'apply_window', 'parse_window_spec', 'window', 'window_series',

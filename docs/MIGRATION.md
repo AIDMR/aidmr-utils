@@ -211,8 +211,5 @@ first.
   `pyproject.toml` files — a fourth environment that nothing describes. The
   package's extras are the first declared account of what the deployed code
   actually needs.
-- `AMP`'s git remote has a GitHub PAT embedded in the URL in `.git/config`. Local
-  only and not committed, but worth rotating and switching to a credential
-  helper. (`AIDMR-FIRE/*.secret` is correctly gitignored.)
 - AMPLOC is described as legacy but is still downloaded in the Dockerfile, loaded
   in `server.py`, and ONNX-warmed on every boot. Deleting it is free.

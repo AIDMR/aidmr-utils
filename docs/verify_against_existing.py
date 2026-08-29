@@ -2,6 +2,28 @@
 
     python docs/verify_against_existing.py
 
+NOTE: this compares aidmr-utils against the VENDORED COPIES it replaced, and
+those copies have now been deleted from the model repos (phases 1-3). Run it
+against the pre-migration code by checking the repos out at the commit before
+they adopted the package:
+
+    git -C ../Papers/BPF  stash        # if you have local work
+    git -C ../Papers/BPF  checkout main
+    git -C ../Papers/CMRQ checkout main
+    python docs/verify_against_existing.py
+
+It reported, at the point of migration:
+
+    orientation  identical transforms to BOTH BPF and CMRQ on all 38 distinct
+                 slice geometries in the FIRE captures
+    dicom        percentile windowing byte-identical to BPF across 165 real
+                 series, 24 of them Philips
+    mrd          greyscale pixels, RGB pixels and header geometry identical to
+                 BPF's on the production path; builds cleanly from all 38 real
+                 geometries
+
+Keep it: it is how the next extraction gets justified too.
+
 Runs aidmr-utils side by side with the implementations it replaces, over real
 scanner captures and real DICOMs, and reports any disagreement. Adoption is
 much easier to justify when "it does the same thing" is measured rather than

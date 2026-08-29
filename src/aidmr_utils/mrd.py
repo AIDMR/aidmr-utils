@@ -613,6 +613,13 @@ def parse_h5_into_fire_arguments(h5_path: str, config=None):
         AMP's copy hard-coded its own planning parameters here, which is why this
         takes it as an argument: a capture is not the property of one program,
         and BPF or CMRQ replaying the same file need their own.
+
+        It defaults to None and is returned unchanged, so a caller whose
+        `process()` reads `config['parameters']` will fail downstream on a
+        NoneType rather than here. That is deliberate - this function has no way
+        to know what any given program needs - but it means each program should
+        wrap this with its own default, as AMP does in
+        `lib/inference/mrd.parse_h5_into_fire_arguments`.
     :return: (iterator over waveforms then images, config, metadata)
     """
     _require_ismrmrd()

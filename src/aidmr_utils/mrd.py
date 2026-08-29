@@ -210,7 +210,7 @@ def _coerce_row_col_parity(img, position_xyz, fov_freq_phase_slice,
     if not coerce_odd_even_dims:
         raise ValueError(
             f"Invalid row/col parity: rows={rows}, cols={cols}. Scanner images "
-            f"must have both dimensions odd or both even. Pass "
+            f"must have both dimensions odd or both dimensions even. Pass "
             f"coerce_odd_even_dims=True to pad one row/column instead.")
 
     position_xyz = np.asarray(position_xyz, dtype=float)

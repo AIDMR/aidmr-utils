@@ -1,0 +1,50 @@
+[project]
+name = "aidmr-utils"
+version = "0.1.0"
+description = "Shared imaging, geometry and result-schema code for the AID-MR programs"
+readme = "README.md"
+# 3.11 is the floor because CMRQ, AIFS and LGEP are all >=3.11,<3.13. AMP and BPF
+# are >=3.12. Raising this to 3.12 means moving those three first.
+requires-python = ">=3.11"
+
+# Core stays deliberately thin: every AID-MR program, training or deployed, can
+# afford these. Anything heavier is an extra, because the FIRE container installs
+# its own pinned set and must not be made to drag in pydicom or torch.
+dependencies = [
+    "numpy>=1.24",
+    "loguru>=0.7",
+    "imageio>=2.31",
+]
+
+[project.optional-dependencies]
+# Reading DICOMs. Training-side only - nothing in the FIRE container needs this.
+dicom = ["pydicom>=3,<4"]
+# MRD image construction and parsing. The FIRE-side counterpart of `dicom`.
+mrd = ["ismrmrd>=1.14"]
+# ONNX session loading. onnxruntime vs onnxruntime-gpu is the caller's choice:
+# depending on the plain wheel here would fight the GPU wheel in the container.
+onnx = ["onnxruntime>=1.20"]
+# Text and shape drawing on images.
+imaging = ["opencv-python-headless>=4.9"]
+dev = [
+    "pytest>=8.0",
+    "pydicom>=3,<4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aidmr_utils"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Modules whose extra is not installed skip rather than error, so a training repo
+# can run the suite without ismrmrd and a FIRE image without pydicom.
+addopts = "-q --strict-markers"
+
+[tool.uv]
+managed = true
+# Copy rather than hard-link: the repos live in Dropbox, which breaks links.
+link-mode = "copy"

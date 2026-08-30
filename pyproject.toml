@@ -1,6 +1,6 @@
 [project]
 name = "aidmr-utils"
-version = "0.1.2"
+version = "0.1.3"
 description = "Shared imaging, geometry and result-schema code for the AID-MR programs"
 readme = "README.md"
 # 3.11 is the floor because CMRQ, AIFS and LGEP are all >=3.11,<3.13. AMP and BPF
@@ -24,11 +24,15 @@ mrd = ["ismrmrd>=1.14"]
 # ONNX session loading. onnxruntime vs onnxruntime-gpu is the caller's choice:
 # depending on the plain wheel here would fight the GPU wheel in the container.
 onnx = ["onnxruntime>=1.20"]
+# YAML experiment configs. Training-side only.
+config = ["pyyaml>=6", "easydict>=1.13"]
 # Text and shape drawing on images.
 imaging = ["opencv-python-headless>=4.9", "scikit-image>=0.22"]
 dev = [
     "pytest>=8.0",
     "pydicom>=3,<4",
+    "pyyaml>=6",
+    "easydict>=1.13",
 ]
 
 [build-system]

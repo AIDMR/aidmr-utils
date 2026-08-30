@@ -256,7 +256,8 @@ def np_float_to_mrd(img,
                     use_table_position: bool = True,
                     use_rgb: bool = False,
                     coerce_odd_even_dims: bool = False,
-                    require_square_pixels: bool = True):
+                    require_square_pixels: bool = True,
+                    phase_is_rows: bool = True):
     """One float image in [0, 1] -> one ismrmrd.Image.
 
     `img` is (H, W) for greyscale, or (H, W, 3) with `use_rgb` — a 2-D array with
@@ -348,13 +349,20 @@ def np_float_to_mrd(img,
     # their anisotropic FOV is an honest description of the render rather than an
     # error. Those are the only ones left.
     #
-    # The pairing below assumes phase runs along rows and frequency along
-    # columns, which is what field_of_view being (freq, phase) against a
-    # (cols, rows) matrix means. A caller whose phase axis is the column axis
-    # must pass its FOV in that order rather than turn this off - AMP's mosaic
-    # had them the wrong way round and this is what caught it.
-    spacing = (float(fov_freq_phase_slice[1]) / float(head.matrix_size[1]),
-               float(fov_freq_phase_slice[0]) / float(head.matrix_size[0]))
+    # `field_of_view` is (freq, phase); `matrix_size` is (cols, rows). WHICH of
+    # those two axes the phase encoding runs along is not stated anywhere in the
+    # header, so the caller has to say: `phase_is_rows`, the same flag AMP's
+    # get_default_right_down_unit_vectors_for_freq_phase returns.
+    #
+    # It only matters for a NON-SQUARE matrix. BPF, CMRQ and AMP's amp3d previews
+    # all pad to square, where both pairings coincide. AMP's amplax2sax does not
+    # - a 480x512 matrix with a 340 x 318.8 mm FOV is 0.664 mm square under
+    # phase-along-columns and reads as 12.9% anisotropic under the other, which
+    # is a wrong answer from this check rather than a real defect.
+    rows, cols = float(head.matrix_size[1]), float(head.matrix_size[0])
+    fov_freq, fov_phase = float(fov_freq_phase_slice[0]), float(fov_freq_phase_slice[1])
+    spacing = ((fov_phase / rows, fov_freq / cols) if phase_is_rows
+               else (fov_freq / rows, fov_phase / cols))
     context = (f"outgoing MRD image (matrix {head.matrix_size[0]}x{head.matrix_size[1]}, "
                f"FOV {float(fov_freq_phase_slice[0]):.1f}x"
                f"{float(fov_freq_phase_slice[1]):.1f} mm). Build the geometry with "

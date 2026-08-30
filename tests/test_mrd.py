@@ -443,3 +443,27 @@ def test_the_check_still_defaults_to_on():
     """BPF relies on the default: the assert is why its geometry bug stayed fixed."""
     with pytest.raises(AssertionError, match='non-square pixels'):
         build(np.zeros((64, 64)), fov_freq_phase_slice=(240.0, 100.0, 8.0))
+
+
+def test_phase_is_rows_decides_the_fov_to_matrix_pairing():
+    """Which axis the phase encoding runs along is not stated in the header.
+
+    A 480x512 matrix with a 340 x 318.8 mm FOV - AMP's amplax2sax preview - has
+    0.664 mm square pixels when phase runs along columns, and reads as 12.9%
+    anisotropic under the other pairing. Only the caller knows which it is.
+    """
+    img = np.zeros((512, 480))                       # rows x cols
+    fov = (340.0, 318.8, 8.0)                        # freq, phase, slice
+    out = build(img, fov_freq_phase_slice=fov, phase_is_rows=False)
+    head = out.getHead()
+    assert (int(head.matrix_size[0]), int(head.matrix_size[1])) == (480, 512)
+    # the same image under the wrong pairing is rejected
+    with pytest.raises(AssertionError, match='non-square pixels'):
+        build(img, fov_freq_phase_slice=fov, phase_is_rows=True)
+
+
+def test_pairing_is_irrelevant_for_a_square_matrix():
+    """Which is why BPF and CMRQ never had to think about it."""
+    for flag in (True, False):
+        build(np.zeros((64, 64)), fov_freq_phase_slice=(240.0, 240.0, 8.0),
+              phase_is_rows=flag)

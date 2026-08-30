@@ -4,7 +4,7 @@ One implementation of the things AMP, CMRQ, AIFS, BPF and LGEP all need, so a fi
 made once is a fix everywhere.
 
 ```bash
-pip install "aidmr-utils[dicom] @ git+https://github.com/AIDMR/aidmr-utils@v0.1.1"
+pip install "aidmr-utils[dicom] @ git+https://github.com/AIDMR/aidmr-utils@v0.1.2"
 ```
 
 Pin to a **tag**, never a branch. The FIRE container currently clones every model
@@ -81,9 +81,14 @@ Turning it on across the estate found AMP emitting non-square pixels on **94.8%*
 of its outgoing images (529 of 558), up to 2:1. Two causes, both since fixed:
 previews padded to square without extending the FOV — the exact bug
 `padded_square_geometry` exists for, which BPF had already hit and fixed — and a
-keypoint mosaic whose FOV tuple was transposed. What legitimately wants the check
-off is an image that is deliberately squashed, such as AMP's shim previews, which
-resize a rectangular region into a fixed square.
+keypoint mosaic whose FOV tuple was transposed, and shim previews squashed into a
+square rather than padded. AMP now measures 0% and keeps the guard on.
+
+`phase_is_rows` (default `True`) tells the check which matrix axis the phase
+encoding runs along — nothing in the MRD header states it. It only matters for a
+**non-square matrix**: a 480x512 matrix at 340 x 318.8 mm is 0.664 mm square one
+way round and 12.9% anisotropic the other. BPF, CMRQ and AMP's amp3d previews all
+pad to square, where both pairings coincide; AMP's amplax2sax does not.
 
 Consolidating also surfaced a latent bug present in **all three** originals: the
 greyscale path never set `head.channels`, so a template header carrying

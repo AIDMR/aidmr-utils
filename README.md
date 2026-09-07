@@ -4,7 +4,7 @@ One implementation of the things AMP, CMRQ, AIFS, BPF and LGEP all need, so a fi
 made once is a fix everywhere.
 
 ```bash
-pip install "aidmr-utils[dicom,mrd] @ git+https://github.com/AIDMR/aidmr-utils@v0.1.3"
+pip install "aidmr-utils[dicom,mrd] @ git+https://github.com/AIDMR/aidmr-utils@v0.1.4"
 ```
 
 Pin to a **tag**, never a branch.

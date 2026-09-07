@@ -600,6 +600,28 @@ def padded_square_geometry(mrd_image) -> dict:
 # Reading .h5 captures
 # ---------------------------------------------------------------------------
 
+def _open_capture_readonly(h5_path: str):
+    """An `ismrmrd.Dataset` over an existing capture, opened READ-ONLY.
+
+    `ismrmrd.Dataset` itself only offers 'a' (create_if_needed=True) or 'r+'
+    (False). Either one has HDF5 mark the file as opened for writing, which
+    rewrites its modification time on every open even when nothing is written -
+    so merely replaying a capture in a test run made every .h5 look freshly
+    edited (and, under a syncing folder, re-uploaded it). Replaying is a read;
+    open it as one. The returned object is a normal Dataset - `_file` and
+    `_dataset_name` are the only state its readers use - so `read_image`,
+    `read_xml_header`, `read_waveform` and friends all work, and the write
+    methods fail as they should on a read-only handle. Use it as a context
+    manager so the handle is closed rather than left to the GC.
+    """
+    _require_ismrmrd()
+    import h5py
+    ds = ismrmrd.Dataset.__new__(ismrmrd.Dataset)
+    ds._file = h5py.File(h5_path, 'r')
+    ds._dataset_name = '/dataset'
+    return ds
+
+
 def parse_h5_to_images(h5_path: str) -> list:
     """Every image in an ISMRMRD .h5 capture, from every image group.
 
@@ -610,12 +632,11 @@ def parse_h5_to_images(h5_path: str) -> list:
     AIFS's behaviour is the correct one and is what this does, sorted so the
     order is deterministic.
     """
-    _require_ismrmrd()
-    ds = ismrmrd.Dataset(h5_path, '/dataset', False)
-    groups = sorted(k for k in ds.list() if 'image' in k)
-    if not groups:
-        raise LookupError(f"no image group in {h5_path}")
-    return [ds.read_image(g, i) for g in groups for i in range(ds.number_of_images(g))]
+    with _open_capture_readonly(h5_path) as ds:
+        groups = sorted(k for k in ds.list() if 'image' in k)
+        if not groups:
+            raise LookupError(f"no image group in {h5_path}")
+        return [ds.read_image(g, i) for g in groups for i in range(ds.number_of_images(g))]
 
 
 def parse_h5_into_fire_arguments(h5_path: str, config=None):
@@ -634,15 +655,14 @@ def parse_h5_into_fire_arguments(h5_path: str, config=None):
         `lib/inference/mrd.parse_h5_into_fire_arguments`.
     :return: (iterator over waveforms then images, config, metadata)
     """
-    _require_ismrmrd()
-    ds = ismrmrd.Dataset(h5_path, '/dataset', False)
     images = parse_h5_to_images(h5_path)
-    try:
-        waveforms = [ds.read_waveform(i) for i in range(ds.number_of_waveforms())]
-    except LookupError:
-        # Dataset raises LookupError from number_of_waveforms if there are none
-        waveforms = []
-    metadata = ismrmrd.xsd.CreateFromDocument(ds.read_xml_header())
+    with _open_capture_readonly(h5_path) as ds:
+        try:
+            waveforms = [ds.read_waveform(i) for i in range(ds.number_of_waveforms())]
+        except LookupError:
+            # Dataset raises LookupError from number_of_waveforms if there are none
+            waveforms = []
+        metadata = ismrmrd.xsd.CreateFromDocument(ds.read_xml_header())
     return iter(waveforms + images), config, metadata
 
 

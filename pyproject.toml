@@ -1,6 +1,6 @@
 [project]
 name = "aidmr-utils"
-version = "0.1.3"
+version = "0.1.4"
 description = "Shared imaging, geometry and result-schema code for the AID-MR programs"
 readme = "README.md"
 # 3.11 is the floor because CMRQ, AIFS and LGEP are all >=3.11,<3.13. AMP and BPF

@@ -13,7 +13,7 @@ ismrmrd = pytest.importorskip('ismrmrd', reason="needs the [mrd] extra")
 
 from aidmr_utils.geometry import Plane, canonical_right_down
 from aidmr_utils.mrd import (INT16_MAX, REPORT_COL_DIR, REPORT_ROW_DIR,
-                             parse_h5_to_images,
+                             parse_h5_to_images, parse_h5_into_fire_arguments,
                              direction_meta, ecg_from_waveforms, image_geometry,
                              meta_string_list_to_array, native_pixel_spacing_mm,
                              np_float_to_mrd, padded_square_geometry,
@@ -412,6 +412,27 @@ def test_parse_h5_group_order_is_deterministic(tmp_path):
     first = [im.data.sum() for im in parse_h5_to_images(str(p))]
     second = [im.data.sum() for im in parse_h5_to_images(str(p))]
     assert first == second
+
+
+def test_parse_h5_does_not_touch_the_capture(tmp_path):
+    """Replaying a capture is a read, and must leave the file untouched.
+
+    ismrmrd.Dataset only opens 'a' or 'r+', and HDF5 rewrites the file's
+    modification time on any writable open even when nothing is written. That
+    made every test run look like it had edited the capture library (and, with
+    the captures under a syncing folder, re-uploaded them all). Open read-only.
+    """
+    import os
+    import time
+    p = tmp_path / 'untouched.h5'
+    _write_capture(p, {'images_0': 2})
+    yesterday = time.time() - 86400
+    os.utime(p, (yesterday, yesterday))
+    before = os.stat(p).st_mtime
+    parse_h5_to_images(str(p))
+    it, _config, header = parse_h5_into_fire_arguments(str(p))
+    assert len(list(it)) == 2 and header is not None
+    assert os.stat(p).st_mtime == before
 
 
 def test_parse_h5_says_so_when_there_are_no_images(tmp_path):

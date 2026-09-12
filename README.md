@@ -11,7 +11,7 @@ Pin to a **tag**, never a branch.
 
 | extra | pulls in | for |
 |---|---|---|
-| *(core)* | numpy, loguru, imageio | `result`, `windowing`, `geometry`, `orientation`, `pixel` |
+| *(core)* | numpy, loguru, imageio | `result`, `windowing`, `geometry`, `plane`, `orientation`, `pixel` |
 | `dicom` | pydicom | reading DICOMs — training side |
 | `mrd` | ismrmrd | building MRD images — scanner side |
 | `onnx` | onnxruntime | loading exported models |
@@ -75,6 +75,22 @@ display range is a policy.
   read from headers without decoding pixels.
 - **`MixedFrameSizesError`** — raised for a series whose frames differ in size,
   which is almost never one cine.
+
+## `plane` — one slice, three sources, compared without guessing
+
+`ImagePlane` is a slice as centre + two in-plane unit axes with their extents + thickness,
+built `from_dicom(ds)` (ImagePositionPatient is the centre of the FIRST pixel, so the plane
+centre is half a matrix in along each axis; PixelSpacing is rows-then-columns),
+`from_mrd(image)` (centre from the `SlicePosLightMarker` attribute, which is the slice centre
+in the exam frame the scanner plans in; the header `position` is in the ICE frame and was
+24 mm away on a real exam) and `from_exam_memory(slice_entry, fov_entry)` (AMP-style
+`SiemensExamMemory_wip_070_fire_ICEOut_<view>_Slice` / `_FOV`). Comparisons match axes by
+direction, never by the words row/column/readout/phase, and normals up to sign:
+`centre_distance_mm`, `normal_angle_deg`, `in_plane_rotation_deg`, `extents_along`.
+`SliceStack` groups parallel slices (a SAX stack from 350 DICOMs, or an `n_slices > 1`
+instruction) and reports n, spacing, centre and normal. `planned_views(meta)` decodes every
+view in a returned image. Needs only numpy: pass pydicom / ismrmrd objects in, nothing is
+imported.
 
 ## `geometry` — cardinal planes and DICOM norm
 
